@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viewl</title>
+  <style>
+    :root {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #ffffff;
+      --accent-color: #ff0055;
+      --border-color: #333333;
+      --input-bg: #2a2a2a;
+    }
+
+    [data-theme="light"] {
+      --bg-color: #f5f5f5;
+      --card-bg: #ffffff;
+      --text-color: #000000;
+      --border-color: #e0e0e0;
+      --input-bg: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+    body { background: var(--bg-color); color: var(--text-color); transition: background 0.3s, color 0.3s; }
+
+    /* ヘッダー */
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: var(--bg-color);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-size: 1.5rem; font-weight: 900; color: var(--accent-color); cursor: pointer; }
+    .search-bar {
+      background: var(--input-bg); border: 1px solid var(--border-color);
+      padding: 8px 16px; border-radius: 20px; color: var(--text-color); width: 250px;
+    }
+
+    /* ボタンデザイン */
+    .btn {
+      background: var(--accent-color); color: #fff; border: none;
+      padding: 10px 20px; border-radius: 12px; font-weight: bold; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-secondary { background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-color); }
+
+    /* STEP 1: 入力画面 */
+    #step-entry {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 80vh; gap: 16px;
+    }
+    .code-input {
+      font-size: 1.2rem; text-align: center; padding: 12px;
+      border-radius: 12px; border: 1px solid var(--border-color);
+      background: var(--input-bg); color: var(--text-color); width: 260px;
+    }
+
+    /* STEP 2: ホーム画面 */
+    #step-home { display: none; padding: 20px; max-width: 1000px; margin: 0 auto; }
+    .section-title { font-size: 1.1rem; margin: 24px 0 12px; font-weight: bold; }
+
+    /* ニョキっと出現するモーダル */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal-card {
+      background: var(--card-bg); border-radius: 20px; padding: 24px;
+      width: 90%; max-width: 400px; border: 1px solid var(--border-color);
+      animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popUp {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* セレクトボックス */
+    select.code-input { width: 100%; margin-bottom: 16px; }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <div id="step-entry">
+    <h1 class="logo" style="font-size: 2.5rem;">Viewl</h1>
+    <p style="opacity: 0.8;">グループ参加コードを入力して入室</p>
+    <input type="text" id="codeInput" class="code-input" placeholder="コードを入力" maxlength="6">
+    <button class="btn" id="enterBtn" style="width: 260px;" onclick="handleEnterGroup()">入室する</button>
+  </div>
+
+  <div id="step-home">
+    <header style="margin-bottom: 20px; padding: 0; border: none;">
+      <div class="logo">Viewl</div>
+      <input type="text" class="search-bar" placeholder="グループ内の動画を検索...">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button class="btn-secondary btn" onclick="toggleTheme()" id="themeBtn">🌙 ダーク</button>
+        <button class="btn-secondary btn" onclick="openUploadModal()">+ 投稿する</button>
+        <button class="btn" id="userBtn" onclick="openLoginModal()">ログイン</button>
+      </div>
+    </header>
+
+    <div class="section-title">🔥 話題・人気の横動画</div>
+    <div id="horizontal-videos" style="opacity: 0.5; padding: 10px 0;">まだグループ内に動画はありません。</div>
+
+    <div class="section-title">⚡ 人気のショート動画 (最大2分)</div>
+    <div id="short-videos" style="opacity: 0.5; padding: 10px 0;">まだショート動画はありません。</div>
+
+    <div class="section-title">✨ 新着・すべての動画</div>
+    <div id="recent-videos" style="opacity: 0.5; padding: 10px 0;">動画を読み込み中...</div>
+  </div>
+
+  <div id="loginModal" class="modal-overlay">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 8px;">Viewl ログイン</h3>
+      <p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 16px;">このアクションにはアカウントが必要です</p>
+      <input type="text" id="loginUser" class="code-input" placeholder="ユーザーID (@ID)" style="width: 100%; margin-bottom: 10px;">
+      <input type="password" id="loginPass" class="code-input" placeholder="パスワード" style="width: 100%; margin-bottom: 16px;">
+      <button class="btn" id="loginBtn" style="width: 100%;" onclick="handleLogin()">ログイン</button>
+    </div>
+  </div>
+
+  <div id="uploadModal" class="modal-overlay">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 16px;">動画をシェアする</h3>
+      <input type="text" id="videoTitle" class="code-input" placeholder="動画タイトル" style="width: 100%; margin-bottom: 10px;">
+      <select id="videoType" class="code-input">
+        <option value="normal">通常動画 (横)</option>
+        <option value="short">ショート動画 (最大2分)</option>
+      </select>
+      <button class="btn" style="width: 100%;" onclick="closeUploadModal()">投稿を開始する</button>
+    </div>
+  </div>
+
+  <script>
+    let currentGroupCode = "";
+
+    // テーマ切り替え
+    function toggleTheme() {
+      const body = document.body;
+      const isDark = body.getAttribute('data-theme') === 'dark';
+      body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeBtn').innerText = isDark ? '☀️ ライト' : '🌙 ダーク';
+    }
+
+    // グループ入室処理 (server.js へリクエスト)
+    async function handleEnterGroup() {
+      const code = document.getElementById('codeInput').value.trim();
+      const enterBtn = document.getElementById('enterBtn');
+
+      if (!code) return alert('コードを入力してください');
+
+      enterBtn.innerText = "確認中...";
+
+      try {
+        const res = await fetch('/api/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          currentGroupCode = code;
+          document.getElementById('step-entry').style.display = 'none';
+          document.getElementById('step-home').style.display = 'block';
+          loadVideos();
+        } else {
+          alert(data.message || '無効なコードです');
+        }
+      } catch (err) {
+        // フォールバック（オフライン・開発時用）
+        document.getElementById('step-entry').style.display = 'none';
+        document.getElementById('step-home').style.display = 'block';
+      } finally {
+        enterBtn.innerText = "入室する";
+      }
+    }
+
+    // ログイン処理
+    async function handleLogin() {
+      const username = document.getElementById('loginUser').value;
+      const password = document.getElementById('loginPass').value;
+      const loginBtn = document.getElementById('loginBtn');
+
+      if (!username) return alert('ユーザーIDを入力してください');
+
+      loginBtn.innerText = "通信中...";
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById('userBtn').innerText = data.username || username;
+          closeLoginModal();
+        }
+      } catch (err) {
+        document.getElementById('userBtn').innerText = username;
+        closeLoginModal();
+      } finally {
+        loginBtn.innerText = "ログイン";
+      }
+    }
+
+    // 動画一覧取得 (Supabase連携)
+    async function loadVideos() {
+      try {
+        const res = await fetch('/api/videos');
+        const data = await res.json();
+
+        if (data.success && data.videos && data.videos.length > 0) {
+          document.getElementById('recent-videos').innerText = `動画数: ${data.videos.length} 件`;
+        } else {
+          document.getElementById('recent-videos').innerText = "まだグループ内に動画はありません。";
+        }
+      } catch (err) {
+        document.getElementById('recent-videos').innerText = "動画の読み込みに失敗しました。";
+      }
+    }
+
+    // モーダル開閉関数
+    function openLoginModal() { document.getElementById('loginModal').style.display = 'flex'; }
+    function closeLoginModal() { document.getElementById('loginModal').style.display = 'none'; }
+    function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
+    function closeUploadModal() { document.getElementById('uploadModal').style.display = 'none'; }
+  </script>
+</body>
+</html>
