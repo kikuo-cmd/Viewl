@@ -41,6 +41,7 @@
       padding: 10px 18px; border-radius: 12px; font-weight: bold; cursor: pointer;
     }
     .btn-secondary { background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-color); }
+    .btn-cancel { background: transparent; border: 1px solid var(--border-color); color: var(--text-color); }
 
     #step-entry {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -56,9 +57,9 @@
     .section-title { font-size: 1.1rem; margin: 24px 0 12px; font-weight: bold; }
 
     .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-    .video-card { background: var(--card-bg); border-radius: 14px; overflow: hidden; border: 1px solid var(--border-color); }
+    .video-card { background: var(--card-bg); border-radius: 14px; overflow: hidden; border: 1px solid var(--border-color); position: relative; }
     .video-card video { width: 100%; aspect-ratio: 16/9; background: #000; object-fit: cover; }
-    .video-info { padding: 12px; }
+    .video-info { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
 
     /* モーダル */
     .modal-overlay {
@@ -75,12 +76,10 @@
       to { transform: scale(1); opacity: 1; }
     }
 
-    /* タブ切り替え */
     .tab-header { display: flex; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); }
     .tab-btn { padding: 8px 16px; border: none; background: none; color: var(--text-color); cursor: pointer; opacity: 0.6; font-weight: bold; }
     .tab-btn.active { opacity: 1; border-bottom: 2px solid var(--accent-color); }
 
-    /* ファイル領域 */
     .file-drop-area {
       border: 2px dashed var(--border-color); border-radius: 12px; padding: 20px;
       text-align: center; cursor: pointer; margin-bottom: 12px; background: var(--input-bg);
@@ -89,7 +88,6 @@
 </head>
 <body data-theme="dark">
 
-  <!-- STEP 1: 入場コード入力 -->
   <div id="step-entry">
     <h1 class="logo" style="font-size: 2.5rem;">Viewl</h1>
     <p style="opacity: 0.8;">グループ参加コードを入力して入室</p>
@@ -97,7 +95,6 @@
     <button class="btn" style="width: 260px;" onclick="handleEnterGroup()">入室する</button>
   </div>
 
-  <!-- STEP 2: ホーム画面 -->
   <div id="step-home">
     <header style="margin-bottom: 20px; padding: 0; border: none;">
       <div class="logo">Viewl</div>
@@ -119,7 +116,6 @@
     <div id="recent-videos" class="video-grid"></div>
   </div>
 
-  <!-- 💬 認証モーダル (ログイン / 新規登録 切替) -->
   <div id="authModal" class="modal-overlay">
     <div class="modal-card">
       <div class="tab-header">
@@ -127,30 +123,32 @@
         <button class="tab-btn" id="tabRegister" onclick="switchAuthTab('register')">新規登録</button>
       </div>
 
-      <!-- ログインフォーム -->
       <div id="formLogin">
         <input type="text" id="loginId" class="code-input" placeholder="チャンネルID (@ID)">
         <input type="password" id="loginPass" class="code-input" placeholder="パスワード">
-        <button class="btn" style="width: 100%; margin-top: 8px;" onclick="handleLogin()">ログイン</button>
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <button class="btn btn-cancel" style="flex:1;" onclick="closeAuthModal()">キャンセル</button>
+          <button class="btn" style="flex:1;" onclick="handleLogin()">ログイン</button>
+        </div>
       </div>
 
-      <!-- 新規登録フォーム -->
       <div id="formRegister" style="display: none;">
         <input type="text" id="regId" class="code-input" placeholder="チャンネルID (英数字)">
         <input type="text" id="regName" class="code-input" placeholder="チャンネル名 (表示名)">
         <input type="password" id="regPass" class="code-input" placeholder="パスワード">
-        <button class="btn" style="width: 100%; margin-top: 8px;" onclick="handleRegister()">アカウント作成</button>
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <button class="btn btn-cancel" style="flex:1;" onclick="closeAuthModal()">キャンセル</button>
+          <button class="btn" style="flex:1;" onclick="handleRegister()">アカウント作成</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- 📤 投稿モーダル (ファイル選択追加) -->
   <div id="uploadModal" class="modal-overlay">
     <div class="modal-card">
       <h3 style="margin-bottom: 12px;">動画ファイルを投稿</h3>
       <input type="text" id="uploadTitle" class="code-input" placeholder="動画タイトル">
       
-      <!-- 動画ファイル選択エリア -->
       <div class="file-drop-area" onclick="document.getElementById('videoFile').click()">
         <span id="fileLabel">📁 動画ファイルを選択</span>
         <input type="file" id="videoFile" accept="video/*" style="display: none;" onchange="handleFileSelect(event)">
@@ -160,13 +158,16 @@
         <input type="checkbox" id="isShortCheck"> ショート動画として投稿
       </label>
 
-      <button class="btn" id="uploadBtn" style="width: 100%;" onclick="handleUpload()">投稿する</button>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-cancel" style="flex: 1;" onclick="closeUploadModal()">キャンセル</button>
+        <button class="btn" id="uploadBtn" style="flex: 1;" onclick="handleUpload()">投稿する</button>
+      </div>
     </div>
   </div>
 
   <script>
     let currentGroupCode = "";
-    let currentUser = null; // { channelId, channelName }
+    let currentUser = null;
     let selectedFile = null;
 
     function toggleTheme() {
@@ -176,7 +177,6 @@
       document.getElementById('themeBtn').innerText = isDark ? '☀️' : '🌙';
     }
 
-    // グループ認証
     async function handleEnterGroup() {
       const code = document.getElementById('codeInput').value.trim();
       if (!code) return alert('コードを入力してください');
@@ -197,7 +197,6 @@
       } catch (err) { alert("接続エラー"); }
     }
 
-    // タブ切り替え
     function switchAuthTab(tab) {
       if (tab === 'login') {
         document.getElementById('tabLogin').classList.add('active');
@@ -212,7 +211,6 @@
       }
     }
 
-    // 新規アカウント作成
     async function handleRegister() {
       const channelId = document.getElementById('regId').value.trim();
       const channelName = document.getElementById('regName').value.trim();
@@ -227,19 +225,14 @@
           body: JSON.stringify({ channelId, channelName, password, groupCode: currentGroupCode })
         });
         const data = await res.json();
-
         if (data.success) {
           currentUser = data.user;
           document.getElementById('userBtn').innerText = currentUser.channelName;
           closeAuthModal();
-          alert('アカウントを作成しました！');
-        } else {
-          alert(data.message);
-        }
+        } else { alert(data.message); }
       } catch (err) { alert("登録エラー"); }
     }
 
-    // ログイン
     async function handleLogin() {
       const channelId = document.getElementById('loginId').value.trim();
       const password = document.getElementById('loginPass').value.trim();
@@ -253,18 +246,14 @@
           body: JSON.stringify({ channelId, password })
         });
         const data = await res.json();
-
         if (data.success) {
           currentUser = data.user;
           document.getElementById('userBtn').innerText = currentUser.channelName;
           closeAuthModal();
-        } else {
-          alert(data.message);
-        }
+        } else { alert(data.message); }
       } catch (err) { alert("ログインエラー"); }
     }
 
-    // ファイル選択処理
     function handleFileSelect(event) {
       const file = event.target.files[0];
       if (file) {
@@ -273,7 +262,6 @@
       }
     }
 
-    // 動画データ取得
     async function loadVideos() {
       try {
         const res = await fetch(`/api/videos?groupCode=${currentGroupCode}`);
@@ -290,8 +278,11 @@
             card.innerHTML = `
               <video src="${video.video_url}" controls></video>
               <div class="video-info">
-                <div style="font-weight:bold;">${video.title}</div>
-                <div style="font-size:0.8rem; opacity:0.7;">チャンネル: ${video.author_id || 'ゲスト'}</div>
+                <div>
+                  <div style="font-weight:bold;">${video.title}</div>
+                  <div style="font-size:0.8rem; opacity:0.7;">${video.author_id || 'ゲスト'}</div>
+                </div>
+                <button class="btn btn-cancel" style="padding: 4px 8px; font-size: 0.8rem;" onclick="deleteVideo('${video.id}')">🗑️</button>
               </div>
             `;
             if (video.is_short) shortContainer.appendChild(card);
@@ -303,7 +294,27 @@
       } catch (err) { console.error(err); }
     }
 
-    // 動画アップロード処理
+    // 🗑️ 動画削除処理
+    async function deleteVideo(videoId) {
+      if (!confirm("この動画を削除しますか？")) return;
+
+      try {
+        const res = await fetch('/api/videos/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadVideos(); // 一覧更新
+        } else {
+          alert("削除に失敗しました");
+        }
+      } catch (err) {
+        alert("削除エラー");
+      }
+    }
+
     async function handleUpload() {
       const title = document.getElementById('uploadTitle').value.trim();
       const isShort = document.getElementById('isShortCheck').checked;
@@ -312,10 +323,9 @@
       if (!title) return alert('タイトルを入力してください');
       if (!selectedFile) return alert('動画ファイルを選択してください');
 
-      uploadBtn.innerText = "アップロード中...";
+      uploadBtn.innerText = "投稿中...";
       uploadBtn.disabled = true;
 
-      // 擬似ローカルURL生成 (またはCloudinaryダイレクトアップロード等へ接続)
       const fakeVideoUrl = URL.createObjectURL(selectedFile);
 
       try {
@@ -346,11 +356,21 @@
 
     function openAuthModal() { document.getElementById('authModal').style.display = 'flex'; }
     function closeAuthModal() { document.getElementById('authModal').style.display = 'none'; }
+    
     function openUploadModal() { 
       if (!currentUser) return openAuthModal();
       document.getElementById('uploadModal').style.display = 'flex'; 
     }
-    function closeUploadModal() { document.getElementById('uploadModal').style.display = 'none'; }
+
+    // ❌ 投稿のキャンセル（入力リセット）
+    function closeUploadModal() { 
+      document.getElementById('uploadModal').style.display = 'none'; 
+      document.getElementById('uploadTitle').value = '';
+      document.getElementById('videoFile').value = '';
+      document.getElementById('fileLabel').innerText = '📁 動画ファイルを選択';
+      document.getElementById('isShortCheck').checked = false;
+      selectedFile = null;
+    }
   </script>
 </body>
 </html>
