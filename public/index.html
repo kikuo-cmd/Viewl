@@ -40,6 +40,7 @@
       background: var(--accent-color); color: #fff; border: none;
       padding: 10px 18px; border-radius: 12px; font-weight: bold; cursor: pointer;
     }
+    .btn:active { opacity: 0.8; }
     .btn-secondary { background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-color); }
     .btn-cancel { background: transparent; border: 1px solid var(--border-color); color: var(--text-color); }
 
@@ -57,7 +58,7 @@
     .section-title { font-size: 1.1rem; margin: 24px 0 12px; font-weight: bold; }
 
     .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-    .video-card { background: var(--card-bg); border-radius: 14px; overflow: hidden; border: 1px solid var(--border-color); position: relative; }
+    .video-card { background: var(--card-bg); border-radius: 14px; overflow: hidden; border: 1px solid var(--border-color); }
     .video-card video { width: 100%; aspect-ratio: 16/9; background: #000; object-fit: cover; }
     .video-info { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
 
@@ -262,6 +263,7 @@
       }
     }
 
+    // 動画データ取得 & 表示
     async function loadVideos() {
       try {
         const res = await fetch(`/api/videos?groupCode=${currentGroupCode}`);
@@ -276,7 +278,7 @@
             const card = document.createElement('div');
             card.className = 'video-card';
             card.innerHTML = `
-              <video src="${video.video_url}" controls></video>
+              <video src="${video.video_url}" controls preload="metadata"></video>
               <div class="video-info">
                 <div>
                   <div style="font-weight:bold;">${video.title}</div>
@@ -291,10 +293,12 @@
         } else {
           recentContainer.innerText = "まだ動画はありません。";
         }
-      } catch (err) { console.error(err); }
+      } catch (err) {
+        console.error(err);
+      }
     }
 
-    // 🗑️ 動画削除処理
+    // 🗑️ 動画削除
     async function deleteVideo(videoId) {
       if (!confirm("この動画を削除しますか？")) return;
 
@@ -306,15 +310,14 @@
         });
         const data = await res.json();
         if (data.success) {
-          loadVideos(); // 一覧更新
+          loadVideos();
         } else {
           alert("削除に失敗しました");
         }
-      } catch (err) {
-        alert("削除エラー");
-      }
+      } catch (err) { alert("削除エラー"); }
     }
 
+    // ☁️ Cloudinaryダイレクトアップロード & DB保存
     async function handleUpload() {
       const title = document.getElementById('uploadTitle').value.trim();
       const isShort = document.getElementById('isShortCheck').checked;
@@ -323,18 +326,33 @@
       if (!title) return alert('タイトルを入力してください');
       if (!selectedFile) return alert('動画ファイルを選択してください');
 
-      uploadBtn.innerText = "投稿中...";
+      uploadBtn.innerText = "動画を送信中...";
       uploadBtn.disabled = true;
 
-      const fakeVideoUrl = URL.createObjectURL(selectedFile);
-
       try {
+        // 1. Cloudinaryへのダイレクトアップロード
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('upload_preset', 'ml_default');
+        formData.append('cloud_name', 'ds9pipwk0');
+
+        const cloudRes = await fetch('https://api.cloudinary.com/v1_1/ds9pipwk0/video/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const cloudData = await cloudRes.json();
+        if (!cloudData.secure_url) {
+          throw new Error(cloudData.error?.message || "Cloudinaryのアップロードに失敗しました");
+        }
+
+        // 2. Supabaseへ投稿データを保存
         const res = await fetch('/api/videos/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title,
-            videoUrl: fakeVideoUrl,
+            videoUrl: cloudData.secure_url,
             isShort,
             authorName: currentUser ? currentUser.channelName : 'ゲスト',
             groupCode: currentGroupCode
@@ -345,9 +363,11 @@
         if (data.success) {
           closeUploadModal();
           loadVideos();
+        } else {
+          alert("データベースの保存に失敗しました");
         }
       } catch (err) {
-        alert("投稿失敗");
+        alert(`投稿エラー: ${err.message}`);
       } finally {
         uploadBtn.innerText = "投稿する";
         uploadBtn.disabled = false;
@@ -362,7 +382,6 @@
       document.getElementById('uploadModal').style.display = 'flex'; 
     }
 
-    // ❌ 投稿のキャンセル（入力リセット）
     function closeUploadModal() { 
       document.getElementById('uploadModal').style.display = 'none'; 
       document.getElementById('uploadTitle').value = '';
