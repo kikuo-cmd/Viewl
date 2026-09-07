@@ -62,7 +62,6 @@
     .video-card video { width: 100%; aspect-ratio: 16/9; background: #000; object-fit: cover; }
     .video-info { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
 
-    /* モーダル */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.6);
       display: none; align-items: center; justify-content: center; z-index: 1000;
@@ -70,11 +69,6 @@
     .modal-card {
       background: var(--card-bg); border-radius: 20px; padding: 24px;
       width: 90%; max-width: 420px; border: 1px solid var(--border-color);
-      animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    @keyframes popUp {
-      from { transform: scale(0.8); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
     }
 
     .tab-header { display: flex; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); }
@@ -89,7 +83,6 @@
 </head>
 <body data-theme="dark">
 
-  <!-- STEP 1: コード入力 -->
   <div id="step-entry">
     <h1 class="logo" style="font-size: 2.5rem;">Viewl</h1>
     <p style="opacity: 0.8;">グループ参加コードを入力して入室</p>
@@ -97,7 +90,6 @@
     <button class="btn" style="width: 260px;" onclick="handleEnterGroup()">入室する</button>
   </div>
 
-  <!-- STEP 2: ホーム画面 -->
   <div id="step-home">
     <header style="margin-bottom: 20px; padding: 0; border: none;">
       <div class="logo">Viewl</div>
@@ -109,14 +101,13 @@
       </div>
     </header>
 
-    <div class="section-title">⚡ 人気のショート動画 (最大2分)</div>
+    <div class="section-title">⚡ 人気のショート動画</div>
     <div id="short-videos" class="video-grid"></div>
 
     <div class="section-title">✨ 新着・すべての動画</div>
     <div id="recent-videos" class="video-grid"></div>
   </div>
 
-  <!-- 💬 ログイン / 新規登録 モーダル -->
   <div id="authModal" class="modal-overlay">
     <div class="modal-card">
       <div class="tab-header">
@@ -134,21 +125,20 @@
       </div>
 
       <div id="formRegister" style="display: none;">
-        <input type="text" id="regId" class="code-input" placeholder="チャンネルID (英数字)">
-        <input type="text" id="regName" class="code-input" placeholder="チャンネル名 (表示名)">
+        <input type="text" id="regId" class="code-input" placeholder="チャンネルID">
+        <input type="text" id="regName" class="code-input" placeholder="チャンネル名">
         <input type="password" id="regPass" class="code-input" placeholder="パスワード">
         <div style="display:flex; gap:10px; margin-top:12px;">
           <button class="btn btn-cancel" style="flex:1;" onclick="closeAuthModal()">キャンセル</button>
-          <button class="btn" style="flex:1;" onclick="handleRegister()">アカウント作成</button>
+          <button class="btn" style="flex:1;" onclick="handleRegister()">登録</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 📤 投稿モーダル -->
   <div id="uploadModal" class="modal-overlay">
     <div class="modal-card">
-      <h3 style="margin-bottom: 12px;">動画ファイルを投稿</h3>
+      <h3 style="margin-bottom: 12px;">動画を投稿</h3>
       <input type="text" id="uploadTitle" class="code-input" placeholder="動画タイトル">
       
       <div class="file-drop-area" onclick="document.getElementById('videoFile').click()">
@@ -168,6 +158,10 @@
   </div>
 
   <script>
+    // ⚙️ Cloudinaryの設定（入力いただいた情報を適用済み）
+    const CLOUDINARY_CLOUD_NAME = "ds9pipwk0";
+    const CLOUDINARY_UPLOAD_PRESET = "Viewl video back up";
+
     let currentGroupCode = "";
     let currentUser = null;
     let selectedFile = null;
@@ -231,7 +225,7 @@
           currentUser = data.user;
           document.getElementById('userBtn').innerText = currentUser.channelName;
           closeAuthModal();
-        } else { alert(data.message); }
+        }
       } catch (err) { alert("登録エラー"); }
     }
 
@@ -264,7 +258,6 @@
       }
     }
 
-    // 📹 動画一覧の取得
     async function loadVideos() {
       try {
         const res = await fetch(`/api/videos?groupCode=${currentGroupCode}`);
@@ -292,15 +285,13 @@
             else recentContainer.appendChild(card);
           });
         } else {
-          recentContainer.innerText = "まだ動画はありません。";
+          recentContainer.innerText = "動画がありません。";
         }
       } catch (err) { console.error(err); }
     }
 
-    // 🗑️ 動画の削除
     async function deleteVideo(videoId) {
-      if (!confirm("この動画を削除しますか？")) return;
-
+      if (!confirm("動画を削除しますか？")) return;
       try {
         const res = await fetch('/api/videos/delete', {
           method: 'POST',
@@ -308,15 +299,11 @@
           body: JSON.stringify({ videoId })
         });
         const data = await res.json();
-        if (data.success) {
-          loadVideos();
-        } else {
-          alert("削除に失敗しました");
-        }
+        if (data.success) loadVideos();
       } catch (err) { alert("削除エラー"); }
     }
 
-    // 📤 サーバー経由で Cloudinary ➔ Supabase へアップロード
+    // 🚀 Cloudinary に直接送信 ➔ 発行されたURLを Supabase DB に保存する処理
     async function handleUpload() {
       const title = document.getElementById('uploadTitle').value.trim();
       const isShort = document.getElementById('isShortCheck').checked;
@@ -325,49 +312,55 @@
       if (!title) return alert('タイトルを入力してください');
       if (!selectedFile) return alert('動画ファイルを選択してください');
 
-      uploadBtn.innerText = "動画データを準備中...";
+      uploadBtn.innerText = "Cloudinaryへ送信中...";
       uploadBtn.disabled = true;
 
       try {
-        // 動画ファイルを Base64 文字列に変換
-        const reader = new FileReader();
-        reader.readAsDataURL(selectedFile);
-        
-        reader.onload = async () => {
-          uploadBtn.innerText = "アップロード中...";
-          const base64Data = reader.result;
+        // ① Cloudinary 直接アップロード用のデータ作成
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-          const res = await fetch('/api/videos/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title,
-              videoData: base64Data,
-              isShort,
-              authorName: currentUser ? currentUser.channelName : 'ゲスト',
-              groupCode: currentGroupCode
-            })
-          });
+        // ② Cloudinary に直接送信 (video としてアップロード)
+        const cloudinaryRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`,
+          { method: 'POST', body: formData }
+        );
 
-          const data = await res.json();
-          if (data.success) {
-            closeUploadModal();
-            loadVideos();
-          } else {
-            alert("投稿エラー: " + (data.error || "アップロードに失敗しました"));
-          }
-          uploadBtn.innerText = "投稿する";
-          uploadBtn.disabled = false;
-        };
+        const cloudinaryData = await cloudinaryRes.json();
 
-        reader.onerror = () => {
-          alert("ファイルの読み込みに失敗しました");
-          uploadBtn.innerText = "投稿する";
-          uploadBtn.disabled = false;
-        };
+        if (!cloudinaryData.secure_url) {
+          throw new Error(cloudinaryData.error?.message || "Cloudinaryへのアップロードに失敗しました。Presetの設定（Unsignedになっているか）を確認してください。");
+        }
+
+        const permanentVideoUrl = cloudinaryData.secure_url; // 永続直リンク
+
+        uploadBtn.innerText = "データベース保存中...";
+
+        // ③ 発行されたURLを Supabase DB に保存
+        const res = await fetch('/api/videos/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            videoUrl: permanentVideoUrl,
+            isShort,
+            authorName: currentUser ? currentUser.channelName : 'ゲスト',
+            groupCode: currentGroupCode
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          closeUploadModal();
+          loadVideos();
+        } else {
+          alert("エラー: " + data.error);
+        }
 
       } catch (err) {
-        alert("エラー: " + err.message);
+        alert("投稿エラー: " + err.message);
+      } finally {
         uploadBtn.innerText = "投稿する";
         uploadBtn.disabled = false;
       }
