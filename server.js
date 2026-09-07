@@ -7,9 +7,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Body parser
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// 動画ファイルの直接受信に対応するためリミットを拡張 (100MBまで)
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 🔑 Supabase & Cloudinary 接続情報
@@ -18,12 +18,14 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJh
 
 const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "ds9pipwk0";
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "4j3UxJD8PBJlDYp0bNXNwAUlhAk";
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET; // API Secretが設定されている場合
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 cloudinary.config({
   cloud_name: CLOUDINARY_CLOUD_NAME,
   api_key: CLOUDINARY_API_KEY,
+  api_secret: CLOUDINARY_API_SECRET,
   secure: true
 });
 
@@ -97,11 +99,27 @@ app.get('/api/videos', async (req, res) => {
   }
 });
 
-// 5. 動画メタデータ保存 API
+// 5. 動画アップロード & メタデータ保存 API (Cloudinary ➔ Supabase)
 app.post('/api/videos/upload', async (req, res) => {
-  const { title, videoUrl, isShort, authorName, groupCode } = req.body;
+  const { title, videoData, isShort, authorName, groupCode } = req.body;
 
   try {
+    let videoUrl = req.body.videoUrl;
+
+    // Base64データで送られてきた場合、サーバー側でCloudinaryへアップロード
+    if (videoData) {
+      const uploadResult = await cloudinary.uploader.upload(videoData, {
+        resource_type: "video",
+        folder: "viewl_videos"
+      });
+      videoUrl = uploadResult.secure_url;
+    }
+
+    if (!videoUrl) {
+      return res.status(400).json({ success: false, message: "動画URLを取得できませんでした" });
+    }
+
+    // Supabaseに登録
     const { data, error } = await supabase
       .from('videos')
       .insert([{
@@ -116,11 +134,12 @@ app.post('/api/videos/upload', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, video: data[0] });
   } catch (err) {
+    console.error("Upload error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 6. 動画削除 API (BIGINT・文字列型変換対策)
+// 6. 動画削除 API
 app.post('/api/videos/delete', async (req, res) => {
   const { videoId } = req.body;
 
@@ -129,7 +148,6 @@ app.post('/api/videos/delete', async (req, res) => {
   }
 
   try {
-    // BIGINT/数値型のIDに正しく変換
     const targetId = isNaN(Number(videoId)) ? videoId : Number(videoId);
 
     const { error } = await supabase
@@ -137,14 +155,9 @@ app.post('/api/videos/delete', async (req, res) => {
       .delete()
       .eq('id', targetId);
 
-    if (error) {
-      console.error("Supabase delete error:", error);
-      throw error;
-    }
-
+    if (error) throw error;
     res.json({ success: true });
   } catch (err) {
-    console.error("Delete handler error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
