@@ -168,10 +168,6 @@
   </div>
 
   <script>
-    // ⚙️ Cloudinaryの設定（ご自身の情報に設定してください）
-    const CLOUDINARY_CLOUD_NAME = "ds9pipwk0";
-    const CLOUDINARY_UPLOAD_PRESET = "ml_default"; // もし独自で作った場合はそのプリセット名に変更
-
     let currentGroupCode = "";
     let currentUser = null;
     let selectedFile = null;
@@ -320,7 +316,7 @@
       } catch (err) { alert("削除エラー"); }
     }
 
-    // 📤 Cloudinaryへ送信 ➔ URLを取得 ➔ Supabaseへ保存
+    // 📤 サーバー経由で Cloudinary ➔ Supabase へアップロード
     async function handleUpload() {
       const title = document.getElementById('uploadTitle').value.trim();
       const isShort = document.getElementById('isShortCheck').checked;
@@ -329,54 +325,49 @@
       if (!title) return alert('タイトルを入力してください');
       if (!selectedFile) return alert('動画ファイルを選択してください');
 
-      uploadBtn.innerText = "Cloudinaryへアップロード中...";
+      uploadBtn.innerText = "動画データを準備中...";
       uploadBtn.disabled = true;
 
       try {
-        // 1. Cloudinary へダイレクトアップロード（FormDataを作成）
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        // 動画ファイルを Base64 文字列に変換
+        const reader = new FileReader();
+        reader.readAsDataURL(selectedFile);
+        
+        reader.onload = async () => {
+          uploadBtn.innerText = "アップロード中...";
+          const base64Data = reader.result;
 
-        const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`, {
-          method: 'POST',
-          body: formData
-        });
+          const res = await fetch('/api/videos/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title,
+              videoData: base64Data,
+              isShort,
+              authorName: currentUser ? currentUser.channelName : 'ゲスト',
+              groupCode: currentGroupCode
+            })
+          });
 
-        const cloudinaryData = await cloudinaryRes.json();
+          const data = await res.json();
+          if (data.success) {
+            closeUploadModal();
+            loadVideos();
+          } else {
+            alert("投稿エラー: " + (data.error || "アップロードに失敗しました"));
+          }
+          uploadBtn.innerText = "投稿する";
+          uploadBtn.disabled = false;
+        };
 
-        if (!cloudinaryRes.ok) {
-          throw new Error(cloudinaryData.error ? cloudinaryData.error.message : "Cloudinaryへのアップロードに失敗しました");
-        }
+        reader.onerror = () => {
+          alert("ファイルの読み込みに失敗しました");
+          uploadBtn.innerText = "投稿する";
+          uploadBtn.disabled = false;
+        };
 
-        // Cloudinaryから返ってきた永続動画URL
-        const videoUrl = cloudinaryData.secure_url;
-
-        uploadBtn.innerText = "Supabaseへデータ保存中...";
-
-        // 2. 発行された動画URLを Supabase データベースに保存
-        const res = await fetch('/api/videos/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title,
-            videoUrl: videoUrl,
-            isShort,
-            authorName: currentUser ? currentUser.channelName : 'ゲスト',
-            groupCode: currentGroupCode
-          })
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          closeUploadModal();
-          loadVideos();
-        } else {
-          alert("データベースへの保存に失敗しました");
-        }
       } catch (err) {
         alert("エラー: " + err.message);
-      } finally {
         uploadBtn.innerText = "投稿する";
         uploadBtn.disabled = false;
       }
